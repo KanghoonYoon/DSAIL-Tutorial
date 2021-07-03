@@ -59,7 +59,3 @@ class MultiheadGraphAttentionLayer(nn.Module):
 
         return hs
 
-    def message_func(self, edges):
-        x = th.cat([edges.src['h'], edges.dst['h']], dim=-1) ## Check
-        e = F.leaky_relu(self.W_e(x))
-        return {'e': e}
