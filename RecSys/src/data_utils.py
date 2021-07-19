@@ -1,16 +1,44 @@
-import sys
-import os
-
-import pandas as pd
+import numpy as np
+import pickle
 import torch as th
+from torch.utils.data import Dataset
 
-class NetflixData(object):
+class NetflixData(Dataset):
 
     def __init__(self, u, i, r):
+
+        self.length = len(u)
 
         self.u = u
         self.i = i
         self.r = r
+
+        self.mu = np.mean(r)
+        self.bu = {_u:0 for _u in u}
+        self.bi = {_i:0 for _i in i}
+        self.R = {_u:0 for _u in u}  # user_cnt
+        self.I = {_i: 0 for _i in i}  # item_cnt
+
+
+        for ith in range(self.length):
+            # Bias values
+            # # mu : scalar
+            # bu, bi : dict user->mean
+            # R : user dependent : Dict -> cnt
+            self.bu[u[ith]] += (r[ith]-self.mu)
+            self.bi[i[ith]] += (r[ith]-self.mu)
+            self.R[u[ith]] += 1
+            self.I[i[ith]] += 1
+
+        for _u in self.bu.keys():
+            self.bu[_u] /= self.R[_u]
+
+        for _i in self.bi.keys():
+            self.bi[_i] /= self.I[_i]
+
+        self.bu = [_bu for _u, _bu in sorted(self.bu, key=lambda x:x[0])]
+        self.bi = [_bi for _i, _bi in sorted(self.bi, key=lambda x:x[0])]
+        self.R = [_r for _i, _r in sorted(self.R, key=lambda x:x[0])]
 
     def __getitem__(self, idx):
 
@@ -18,44 +46,11 @@ class NetflixData(object):
 
 def read_data(dataname):
 
-    u = []
-    i = []
-    r = []
+    if dataname=='netflix_toy':
+        with open('data/Netflix/netflix_toy.pkl', 'rb') as f:
+            data = pickle.load(f)
 
-    if dataname == 'netflix':
-        path = 'data/Netflix/training_set'
-
-        for file in os.listdir(path):
-
-            with open(path+'/'+file, 'r') as f:
-
-
-                item_idx = int(file.replace('mv_', '').replace('.txt', ''))
-
-                print("Column names:", f.readline())
-
-                while 1:
-                    line = f.readline()
-
-
-                    if line == '':
-                        break
-
-                    line = line.replace('\n', '')
-                    user_idx, rating, data = line.split(',')
-                    user_idx = int(user_idx)
-                    rating = int(rating)
-                    u.append(user_idx)
-                    i.append(item_idx)
-                    r.append(rating)
-
-    return u, i, r
-
-
-def batch(iterable, n=1):
-    l = len(iterable)
-    for ndx in range(0, l, n):
-        yield iterable[ndx:min(ndx + n, l)]
+    return data['user'], data['item'], data['rate']
 
 
 def collate_fn(instance):
